@@ -28,6 +28,9 @@ func HandlePortfolio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Add Logic here
+	if p.UserID == "" {
+
+	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(p)
