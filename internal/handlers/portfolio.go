@@ -84,5 +84,5 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 	// 3. save rebalance transaction to db
 	storage.SaveRebalanceTransactions(r.Context(), transactions)
 
-	return writeJSON(w, http.StatusOK, map[string]string{"status": "rebalance request received"})
+	return writeJSON(w, http.StatusOK, transactions)
 }
