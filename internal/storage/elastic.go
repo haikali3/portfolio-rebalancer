@@ -93,8 +93,9 @@ func GetPortfolio(ctx context.Context, userID string) (*models.Portfolio, error)
 func SaveRebalanceTransactions(ctx context.Context, transactions []models.RebalanceTransaction) error {
 	var buf bytes.Buffer
 
-	for _, t := range transactions {
-		meta := []byte(fmt.Sprintf(`{ "index" : { "_index" : "rebalance_transactions" } }%s`, "\n"))
+	for i, t := range transactions {
+		log.Printf("Transaction %d: %+v", i+1, t)
+		meta := fmt.Appendf(nil, `{ "index" : { "_index" : "rebalance_transactions" } }%s`, "\n")
 		body, err := json.Marshal(t)
 		if err != nil {
 			return err

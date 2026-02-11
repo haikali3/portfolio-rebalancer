@@ -13,16 +13,16 @@ func CalculateRebalance(updatedAllocation, currentAlloctaion map[string]float64)
 		if diff > 0 {
 			// user has too little, buy more
 			result = append(result, models.RebalanceTransaction{
-				Asset:                asset,
-				Action:               "BUY",
-				RebalanceTransaction: diff,
+				Asset:            asset,
+				Action:           "BUY",
+				RebalancePercent: diff,
 			})
 		} else if diff < 0 {
 			// user has too much, sell some
 			result = append(result, models.RebalanceTransaction{
-				Asset:                asset,
-				Action:               "SELL",
-				RebalanceTransaction: -diff,
+				Asset:            asset,
+				Action:           "SELL",
+				RebalancePercent: -diff,
 			})
 		}
 	}
