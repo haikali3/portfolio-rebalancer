@@ -4,7 +4,7 @@ import (
 	"portfolio-rebalancer/internal/models"
 )
 
-func CalculateRebalance(updatedAllocation, currentAlloctaion map[string]float64) []models.RebalanceTransaction {
+func CalculateRebalance(UserID string, updatedAllocation, currentAlloctaion map[string]float64) []models.RebalanceTransaction {
 	var result []models.RebalanceTransaction
 
 	// TODO: create rebalance transactions and update portfolio
@@ -13,6 +13,7 @@ func CalculateRebalance(updatedAllocation, currentAlloctaion map[string]float64)
 		if diff > 0 {
 			// user has too little, buy more
 			result = append(result, models.RebalanceTransaction{
+				UserID:           UserID,
 				Asset:            asset,
 				Action:           "BUY",
 				RebalancePercent: diff,
@@ -20,6 +21,7 @@ func CalculateRebalance(updatedAllocation, currentAlloctaion map[string]float64)
 		} else if diff < 0 {
 			// user has too much, sell some
 			result = append(result, models.RebalanceTransaction{
+				UserID:           UserID,
 				Asset:            asset,
 				Action:           "SELL",
 				RebalancePercent: -diff,

@@ -79,7 +79,7 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// 2. calc rebalance transaction (buy/sell) to move from new allowcation back to original allocation
-	transactions := services.CalculateRebalance(req.NewAllocation, original.Allocation)
+	transactions := services.CalculateRebalance(req.UserID, req.NewAllocation, original.Allocation)
 
 	// 3. save rebalance transaction to db
 	storage.SaveRebalanceTransactions(r.Context(), transactions)
