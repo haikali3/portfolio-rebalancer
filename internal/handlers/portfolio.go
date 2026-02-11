@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"portfolio-rebalancer/internal/models"
+	"portfolio-rebalancer/internal/services"
 	"portfolio-rebalancer/internal/storage"
 )
 
@@ -69,6 +70,19 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 	if len(req.NewAllocation) == 0 {
 		return NewAPIError(http.StatusBadRequest, "new_allocation is required")
 	}
+
+	// 1. get user's allocation
+	original, err := storage.GetPortfolio(r.Context(), req.UserID)
+	if err != nil {
+		log.Printf("Failed to get portfolio: %v", err)
+		return NewAPIError(http.StatusInternalServerError, "failed to get portfolio")
+	}
+
+	// 2. calc rebalance transaction (buy/sell) to move from new allowcation back to original allocation
+	transactions := services.CalculateRebalance(req.NewAllocation, original.Allocation)
+
+	// 3. save rebalance transaction to db
+	storage.SaveRebalanceTransactions(r.Context(), transactions)
 
 	return writeJSON(w, http.StatusOK, map[string]string{"status": "rebalance request received"})
 }

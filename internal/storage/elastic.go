@@ -89,3 +89,31 @@ func GetPortfolio(ctx context.Context, userID string) (*models.Portfolio, error)
 
 	return &esResp.Source, nil
 }
+
+func SaveRebalanceTransactions(ctx context.Context, transactions []models.RebalanceTransaction) error {
+	var buf bytes.Buffer
+
+	for _, t := range transactions {
+		meta := []byte(fmt.Sprintf(`{ "index" : { "_index" : "rebalance_transactions" } }%s`, "\n"))
+		body, err := json.Marshal(t)
+		if err != nil {
+			return err
+		}
+		buf.Write(meta)
+		buf.Write(body)
+		buf.WriteByte('\n')
+	}
+
+	res, err := esClient.Bulk(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("error saving rebalance transactions: %s", res.String())
+	}
+
+	log.Printf("Saved %d rebalance transactions", len(transactions))
+	return nil
+}
