@@ -68,11 +68,11 @@ func ConsumeMessage(ctx context.Context, handler func(kafka.Message)) error {
 	}
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   []string{kafkaBroker},
-		Topic:     topic,
-		Partition: 0,
-		MinBytes:  10e3, // 10KB
-		MaxBytes:  10e6, // 10MB
+		Brokers:  []string{kafkaBroker},
+		Topic:    topic,
+		GroupID:  "rebalance-consumer",
+		MinBytes: 10e3, // 10KB
+		MaxBytes: 10e6, // 10MB
 	})
 
 	reader.SetOffset(kafka.FirstOffset)
