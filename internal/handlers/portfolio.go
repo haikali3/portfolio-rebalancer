@@ -40,7 +40,10 @@ func HandlePortfolio(w http.ResponseWriter, r *http.Request) error {
 		return NewAPIError(http.StatusInternalServerError, "failed to save portfolio")
 	}
 
-	return writeJSON(w, http.StatusCreated, p)
+	return writeJSON(w, http.StatusCreated, map[string]any{
+		"status_code": http.StatusCreated,
+		"data":        p,
+	})
 }
 
 // HandleRebalance handles portfolio rebalance requests from 3rd party provider (feel free to update the request parameter/model)
@@ -84,5 +87,8 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 	// 3. save rebalance transaction to db
 	storage.SaveRebalanceTransactions(r.Context(), transactions)
 
-	return writeJSON(w, http.StatusOK, transactions)
+	return writeJSON(w, http.StatusOK, map[string]any{
+		"status_code": http.StatusOK,
+		"data":        transactions,
+	})
 }
