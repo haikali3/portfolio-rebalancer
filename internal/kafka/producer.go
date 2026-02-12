@@ -22,9 +22,10 @@ func InitKafka() error {
 	}
 
 	writer = &kafka.Writer{
-		Addr:     kafka.TCP(kafkaBroker),
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
+		Addr:                   kafka.TCP(kafkaBroker),
+		Topic:                  topic,
+		Balancer:               &kafka.LeastBytes{},
+		AllowAutoTopicCreation: true,
 	}
 
 	// Retry logic to check Kafka availability
@@ -40,6 +41,7 @@ func InitKafka() error {
 		time.Sleep(2 * time.Second)
 	}
 
+	log.Println("Kafka producer initialized (topic will be auto-created on first write)")
 	return nil
 }
 
