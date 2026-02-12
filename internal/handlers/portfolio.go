@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -8,6 +9,14 @@ import (
 	"portfolio-rebalancer/internal/models"
 	"portfolio-rebalancer/internal/storage"
 )
+
+type PortfolioStore interface {
+	SavePortfolio(ctx context.Context, p models.Portfolio) error
+}
+
+type MessagePublisher interface {
+	PublishMessage(ctx context.Context, payload []byte) error
+}
 
 // HandlePortfolio handles new portfolio creation requests (feel free to update the request parameter/model)
 // Sample Request (POST /portfolio):
