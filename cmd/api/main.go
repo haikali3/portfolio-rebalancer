@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"portfolio-rebalancer/internal/handlers"
@@ -18,6 +19,7 @@ func main() {
 	if err := kafka.InitKafka(); err != nil {
 		log.Fatalf("Failed to initialize Kafka producer: %v", err)
 	}
+	kafka.StartRebalanceConsumer(context.Background())
 
 	http.HandleFunc("/portfolio", handlers.Make(handlers.HandlePortfolio))
 	http.HandleFunc("/rebalance", handlers.Make(handlers.HandleRebalance))
