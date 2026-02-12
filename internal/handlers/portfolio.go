@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"portfolio-rebalancer/internal/kafka"
 	"portfolio-rebalancer/internal/models"
-	"portfolio-rebalancer/internal/services"
 	"portfolio-rebalancer/internal/storage"
 )
 
@@ -75,20 +75,18 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// 1. get user's allocation
-	original, err := storage.GetPortfolio(r.Context(), req.UserID)
+	payload, err := json.Marshal(req)
 	if err != nil {
-		log.Printf("Failed to get portfolio: %v", err)
-		return NewAPIError(http.StatusInternalServerError, "failed to get portfolio")
+		return NewAPIError(http.StatusInternalServerError, "failed to marshal rebalance request")
 	}
 
-	// 2. calc rebalance transaction (buy/sell) to move from new allowcation back to original allocation
-	transactions := services.CalculateRebalance(req.UserID, req.NewAllocation, original.Allocation)
-
-	// 3. save rebalance transaction to db
-	storage.SaveRebalanceTransactions(r.Context(), transactions)
+	if err := kafka.PublishMessage(r.Context(), payload); err != nil {
+		log.Printf("Failed to publish rebalance message to Kafka: %v", err)
+		return NewAPIError(http.StatusInternalServerError, "failed to publish rebalance message")
+	}
 
 	return writeJSON(w, http.StatusOK, map[string]any{
 		"status_code": http.StatusOK,
-		"data":        transactions,
+		"msg":         "rebalance request received and being processed",
 	})
 }
