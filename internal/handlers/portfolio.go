@@ -74,7 +74,7 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 		return NewAPIError(http.StatusBadRequest, "new_allocation is required")
 	}
 
-	// 1. get user's allocation
+	// publish rebalance request to kafka for async processing
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return NewAPIError(http.StatusInternalServerError, "failed to marshal rebalance request")

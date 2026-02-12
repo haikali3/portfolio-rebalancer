@@ -75,8 +75,6 @@ func ConsumeMessage(ctx context.Context, handler func(kafka.Message)) error {
 		MaxBytes: 10e6, // 10MB
 	})
 
-	reader.SetOffset(kafka.FirstOffset)
-
 	go func() {
 		defer reader.Close()
 		for {

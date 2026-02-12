@@ -33,7 +33,7 @@ func InvalidRequestData(errors map[string]string) APIError {
 func InvalidJSON() APIError {
 	return APIError{
 		StatusCode: http.StatusBadRequest,
-		Msg:        fmt.Errorf("Invalid JSON request date").Error(),
+		Msg:        fmt.Errorf("Invalid JSON request data").Error(),
 	}
 }
 
