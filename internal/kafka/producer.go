@@ -5,16 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"portfolio-rebalancer/internal/models"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
-
-type PortfolioStore interface {
-	GetPortfolio(ctx context.Context, userID string) (*models.Portfolio, error)
-	SaveRebalanceTransactions(ctx context.Context, userID string, transactions []models.RebalanceTransaction) error
-}
 
 var writer *kafka.Writer
 
