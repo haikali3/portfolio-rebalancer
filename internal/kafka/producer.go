@@ -58,7 +58,7 @@ func PublishMessage(ctx context.Context, payload []byte) error {
 	return writer.WriteMessages(ctx, msg)
 }
 
-func ConsumeMessage(ctx context.Context, handler func(kafka.Message)) error {
+func ConsumeMessage(ctx context.Context, handler func(kafka.Message) error) error {
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
 	topic := os.Getenv("KAFKA_TOPIC")
 
@@ -84,7 +84,12 @@ func ConsumeMessage(ctx context.Context, handler func(kafka.Message)) error {
 				continue
 			}
 
-			handler(msg)
+			if err := handler(msg); err != nil {
+				log.Printf("Failed to process message: %v\n", err)
+				continue
+			}
+
+			reader.CommitMessages(ctx, msg)
 		}
 	}()
 

@@ -12,19 +12,19 @@ import (
 )
 
 func StartRebalanceConsumer(ctx context.Context) {
-	ConsumeMessage(ctx, func(msg kafka.Message) {
+	ConsumeMessage(ctx, func(msg kafka.Message) error {
 
 		// 1. unmarshal msg raw bytes from kafka
 		var req models.UpdatedPortfolio
 		if err := json.Unmarshal(msg.Value, &req); err != nil {
 			log.Printf("Failed to unmarshal rebalance message: %v", err)
-			return
+			return err
 		}
 		// 2. get original allocation from elasticsearch
 		original, err := storage.GetPortfolio(ctx, req.UserID)
 		if err != nil {
 			log.Printf("Failed to get portfolio for user %s: %v", req.UserID, err)
-			return
+			return err
 		}
 
 		// 3. calcu rebalance tx
@@ -33,9 +33,10 @@ func StartRebalanceConsumer(ctx context.Context) {
 		// 4. save tx to elasticsearch
 		if err := storage.SaveRebalanceTransactions(ctx, transactions); err != nil {
 			log.Printf("Failed to save rebalance transactions for user %s: %v", req.UserID, err)
-			return
+			return err
 		}
 
 		log.Printf("Rebalanced user %s: %d transactions", req.UserID, len(transactions))
+		return nil
 	})
 }
