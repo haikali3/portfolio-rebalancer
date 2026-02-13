@@ -1,99 +1,160 @@
 # Portfolio Rebalancer
 
-This is a take-home assignment to build backend APIs for managing and rebalancing user portfolios.
+Backend API service for managing user portfolios and calculating rebalance transactions. When a third-party provider reports that market conditions have shifted a user's allocation, the system computes the BUY/SELL transactions needed to restore the original target allocation.
 
+## Architecture
+
+```
+Client ──POST /portfolio──▶ API Server ──▶ Elasticsearch (portfolios index)
+
+Client ──POST /rebalance──▶ API Server ──▶ Kafka (rebalance topic)
+                                                  │
+                                          Consumer (with retries)
+                                                  │
+                                           ┌──────┴──────┐
+                                           │  Calculate   │
+                                           │  Rebalance   │
+                                           └──────┬──────┘
+                                                  │
+                                    Elasticsearch (rebalance_transactions index)
+                                                  │
+                                         (on failure after 3 retries)
+                                                  │
+                                           Kafka DLQ topic
+```
+
+Rebalance requests are processed asynchronously via Kafka to handle high throughput from providers. Failed messages are retried with exponential backoff and sent to a dead letter queue after exhausting retries.
 
 ## Tech Stack
 
-- Go
-- Elasticsearch (Feel free to use any other database or an in-memory alternative)
-- Kafka (Feel free to use any other messaging system if needed)
-- Docker
+- **Go** - API server and business logic
+- **Elasticsearch** - Persistence for portfolios and rebalance transactions
+- **Kafka** - Message queue for async rebalance processing
+- **Docker Compose** - Container orchestration
 
+## Getting Started
 
-## Running the Project
+### Prerequisites
 
-```
+- Docker and Docker Compose
+
+### Running
+
+```bash
 docker compose build
 docker compose up
 ```
 
+The service will be available at `http://localhost:8080`.
 
-## Models
+### Tooling UIs
 
-- Portfolio 
-        - `UserID` field is a unique user identifier in our system
-        - `Allocation` field represents the percentage of the user's total portfolio or cash distribution across different asset classes. 
-            Eg: {"stocks": 60, "bonds": 30, "gold": 10}.
-            Note: This means 60% of the user's portfolio is allocated to stocks, 30% to bonds, and 10% to gold
-            
-- UpdatedPortfolio 
-        - `UserID` is the user's unique ID
-        - `NewAllocation` is the new allocation of user portfolio in %.
+| Tool | URL | Purpose |
+|------|-----|---------|
+| Kibana | http://localhost:5601 | Browse Elasticsearch data |
+| Kafbat UI | http://localhost:9000 | Monitor Kafka topics and messages |
 
-- RebalanceTransaction
-        - `userID` is the user's unique ID
-        - `Action` is the type of transaction (BUY/SELL)
-        - `Asset` is the type of user asset to be transferred (eg: stocks, bonds, gold etc.)
-        - `RebalancePercent` is the percentage of the asset transferred
+## API Reference
 
-- Feel free to edit/add models
+### POST /portfolio
 
+Create a user portfolio with target allocation percentages.
 
-## APIs
-- /portfolio : This takes in userId and current user allocation. This will api will be used to create users in our system along with their portfolio allocation.
+**Request:**
+```json
+{
+  "user_id": "1",
+  "allocation": {
+    "stocks": 60,
+    "bonds": 30,
+    "gold": 10
+  }
+}
+```
 
-- /rebalance : This is the API that simulates a third-party provider, which calculates a user's portfolio allocation based on market changes and returns an updated allocation. For the current task, we will manually call this API to mock the third-party interaction.
+**Response (201):**
+```json
+{
+  "status_code": 201,
+  "data": {
+    "user_id": "1",
+    "allocation": {
+      "stocks": 60,
+      "bonds": 30,
+      "gold": 10
+    }
+  }
+}
+```
 
+**Validation:**
+- `user_id` is required
+- `allocation` must be non-empty
+- Allocation percentages must be non-negative and sum to 100
 
-- Feel free to edit/add APIs
+### POST /rebalance
 
+Submit an updated allocation (from market changes) to trigger rebalancing back to the user's original target.
 
-## TODO
+**Request:**
+```json
+{
+  "user_id": "1",
+  "new_allocation": {
+    "stocks": 70,
+    "bonds": 20,
+    "gold": 10
+  }
+}
+```
 
-- Complete the `/portfolio` API
-    - Accept a new user's portfolio details via a POST request.
-    - Persist the portfolio in Elasticsearch.
+**Response (200):**
+```json
+{
+  "status_code": 200,
+  "msg": "rebalance request received and being processed"
+}
+```
 
-- Complete the `/rebalance` API
-    - Accept a user's updated portfolio based on market conditions via a POST request.
-    - Maintain the user's original allocation percentages for reference.
-    - Calculate the transactions needed to rebalance the user's current portfolio allocation percentage back to their original allocation percentage.
-    - Save the RebalanceTransaction in Elasticsearch.
+The request is published to Kafka and processed asynchronously. The consumer fetches the user's original allocation from Elasticsearch, calculates the required transactions, and saves them.
 
-- Assuming we could get multiple rebalance api calls from the provider, we need to ensure our system can handle load and is fault tolerant(could be supported by adding queue and retries).
+**Example:** If the original allocation is `{stocks: 60, bonds: 30, gold: 10}` and the market has shifted it to `{stocks: 70, bonds: 20, gold: 10}`, the system generates:
 
-- Write a README
+| Action | Asset | Percent |
+|--------|-------|---------|
+| SELL | stocks | 10% |
+| BUY | bonds | 10% |
 
-- Feel free to add further capabilities.
+## Project Structure
 
+```
+cmd/api/main.go              # Entry point, server setup
+internal/
+  handlers/
+    portfolio.go             # HTTP handlers for /portfolio and /rebalance
+    helper.go                # Error types and JSON response helpers
+  services/
+    rebalance.go             # Rebalance calculation logic
+    rebalance_test.go        # Unit tests for rebalance calculations
+  kafka/
+    producer.go              # Kafka producer with DLQ support
+    consumer.go              # Consumer with retry logic (3 attempts, exponential backoff)
+  models/
+    portfolio.go             # Portfolio, UpdatedPortfolio, RebalanceTransaction
+  storage/
+    elastic.go               # Elasticsearch operations (save/get portfolio, bulk save transactions)
+```
 
-## Example
+## Fault Tolerance
 
-- `/portfolio` API creates a user with ID = 1 and Allocation = {"stocks": 60, "bonds": 30, "gold": 10}
-    Note: here the allocation is 60% stocks, 30% bonds and 10% gold
+- **Async processing** - Rebalance requests go through Kafka, decoupling the API from processing.
+- **Retry logic** - Failed messages are retried up to 3 times with exponential backoff (1s, 2s, 3s).
+- **Dead letter queue** - Messages that fail all retries are published to a `rebalance-dlq` topic for investigation.
+- **Connection retries** - Both Elasticsearch and Kafka connections retry on startup until available.
+- **Persistent storage** - Elasticsearch data is stored on a Docker volume (`es-data`).
 
-- `/rebalance` API is called with inputs
-    ID = 1
-    NewAllocation = {"stocks": 70, "bonds": 20, "gold": 10}
-    [This is how much the user's portfolio has moved due to market conditions]
+## Running Tests
 
-- We need to calculate and save the RebalanceTransaction to maintain 60% stocks, 30% bonds and 10% gold.
-
-    Transaction 1: 
-            UserID = "1"
-	        Sell 10% of stocks
-
-    Transaction 2: 
-            UserID = "1"
-	        Buy 10% of bonds
-
-
-## Evaluation Criteria
-
-- Code quality and structure
-- Logical correctness
-- Fault tolerance
-- Extensibility and Scalablility
-- Test coverage
-- Optional: Error handling and edge cases.
+```bash
+go test ./...
+```
