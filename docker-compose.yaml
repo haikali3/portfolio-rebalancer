@@ -21,6 +21,8 @@ services:
       - xpack.security.enabled=false
     ports:
       - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
 
   kafka:
     image: apache/kafka:4.1.1
@@ -61,3 +63,6 @@ services:
       - elasticsearch
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+
+volumes:
+  es-data:

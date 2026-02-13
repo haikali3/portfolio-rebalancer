@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
+
 	"portfolio-rebalancer/internal/models"
 	"portfolio-rebalancer/internal/services"
 	"portfolio-rebalancer/internal/storage"
@@ -11,32 +13,52 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+const maxRetries = 3
+
 func StartRebalanceConsumer(ctx context.Context) {
 	ConsumeMessage(ctx, func(msg kafka.Message) error {
-
-		// 1. unmarshal msg raw bytes from kafka
-		var req models.UpdatedPortfolio
-		if err := json.Unmarshal(msg.Value, &req); err != nil {
-			log.Printf("Failed to unmarshal rebalance message: %v", err)
-			return err
-		}
-		// 2. get original allocation from elasticsearch
-		original, err := storage.GetPortfolio(ctx, req.UserID)
-		if err != nil {
-			log.Printf("Failed to get portfolio for user %s: %v", req.UserID, err)
-			return err
+		var lastErr error
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			lastErr = processRebalanceMessage(ctx, msg)
+			if lastErr == nil {
+				return nil
+			}
+			log.Printf("Retry %d/%d failed for message: %v", attempt, maxRetries, lastErr)
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second)
+			}
 		}
 
-		// 3. calcu rebalance tx
-		transactions := services.CalculateRebalance(req.UserID, req.NewAllocation, original.Allocation)
-
-		// 4. save tx to elasticsearch
-		if err := storage.SaveRebalanceTransactions(ctx, transactions); err != nil {
-			log.Printf("Failed to save rebalance transactions for user %s: %v", req.UserID, err)
-			return err
+		log.Printf("All retries exhausted, sending message to DLQ: %v", lastErr)
+		if dlqErr := PublishToDLQ(ctx, msg.Value); dlqErr != nil {
+			log.Printf("Failed to publish to DLQ: %v", dlqErr)
 		}
-
-		log.Printf("Rebalanced user %s: %d transactions", req.UserID, len(transactions))
-		return nil
+		return lastErr
 	})
+}
+
+func processRebalanceMessage(ctx context.Context, msg kafka.Message) error {
+	var req models.UpdatedPortfolio
+	if err := json.Unmarshal(msg.Value, &req); err != nil {
+		return err
+	}
+
+	original, err := storage.GetPortfolio(ctx, req.UserID)
+	if err != nil {
+		return err
+	}
+
+	transactions := services.CalculateRebalance(req.UserID, req.NewAllocation, original.Allocation)
+
+	if len(transactions) == 0 {
+		log.Printf("No rebalancing needed for user %s", req.UserID)
+		return nil
+	}
+
+	if err := storage.SaveRebalanceTransactions(ctx, transactions); err != nil {
+		return err
+	}
+
+	log.Printf("Rebalanced user %s: %d transactions", req.UserID, len(transactions))
+	return nil
 }

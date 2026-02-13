@@ -11,6 +11,7 @@ import (
 )
 
 var writer *kafka.Writer
+var dlqWriter *kafka.Writer
 
 // InitKafka initializes kafka connection
 func InitKafka() error {
@@ -45,6 +46,20 @@ func InitKafka() error {
 	return nil
 }
 
+func initDLQWriter() {
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	topic := os.Getenv("KAFKA_TOPIC")
+	if kafkaBroker == "" || topic == "" {
+		return
+	}
+	dlqWriter = &kafka.Writer{
+		Addr:                   kafka.TCP(kafkaBroker),
+		Topic:                  topic + "-dlq",
+		Balancer:               &kafka.LeastBytes{},
+		AllowAutoTopicCreation: true,
+	}
+}
+
 func PublishMessage(ctx context.Context, payload []byte) error {
 	if writer == nil {
 		log.Println("Kafka writer is nil; skipping message publish")
@@ -56,6 +71,17 @@ func PublishMessage(ctx context.Context, payload []byte) error {
 	}
 
 	return writer.WriteMessages(ctx, msg)
+}
+
+func PublishToDLQ(ctx context.Context, payload []byte) error {
+	if dlqWriter == nil {
+		initDLQWriter()
+	}
+	if dlqWriter == nil {
+		log.Println("DLQ writer is nil; cannot publish to DLQ")
+		return fmt.Errorf("dlq writer not initialized")
+	}
+	return dlqWriter.WriteMessages(ctx, kafka.Message{Value: payload})
 }
 
 func ConsumeMessage(ctx context.Context, handler func(kafka.Message) error) error {
