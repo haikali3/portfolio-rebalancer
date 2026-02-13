@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"portfolio-rebalancer/internal/kafka"
 	"portfolio-rebalancer/internal/models"
@@ -33,6 +34,10 @@ func HandlePortfolio(w http.ResponseWriter, r *http.Request) error {
 
 	if len(p.Allocation) == 0 {
 		return NewAPIError(http.StatusBadRequest, "allocation is required")
+	}
+
+	if err := validateAllocationSum(p.Allocation); err != nil {
+		return err
 	}
 
 	if err := storage.SavePortfolio(r.Context(), p); err != nil {
@@ -74,6 +79,10 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 		return NewAPIError(http.StatusBadRequest, "new_allocation is required")
 	}
 
+	if err := validateAllocationSum(req.NewAllocation); err != nil {
+		return err
+	}
+
 	// publish rebalance request to kafka for async processing
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -89,4 +98,18 @@ func HandleRebalance(w http.ResponseWriter, r *http.Request) error {
 		"status_code": http.StatusOK,
 		"msg":         "rebalance request received and being processed",
 	})
+}
+
+func validateAllocationSum(allocation map[string]float64) error {
+	var sum float64
+	for _, pct := range allocation {
+		if pct < 0 {
+			return NewAPIError(http.StatusBadRequest, "allocation percentages must be non-negative")
+		}
+		sum += pct
+	}
+	if math.Abs(sum-100) > 0.01 {
+		return NewAPIError(http.StatusBadRequest, "allocation percentages must sum to 100")
+	}
+	return nil
 }
