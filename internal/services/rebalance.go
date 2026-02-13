@@ -28,6 +28,16 @@ func CalculateRebalance(UserID string, updatedAllocation, currentAlloctaion map[
 			})
 		}
 	}
+	for asset, updatedPercentage := range updatedAllocation {
+		if _, exists := currentAlloctaion[asset]; !exists {
+			result = append(result, models.RebalanceTransaction{
+				UserID:           UserID,
+				Asset:            asset,
+				Action:           "SELL",
+				RebalancePercent: updatedPercentage,
+			})
+		}
+	}
 
 	return result
 }
